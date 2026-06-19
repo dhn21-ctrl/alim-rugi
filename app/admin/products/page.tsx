@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
@@ -20,6 +20,10 @@ export default function AdminProductsPage() {
   const [editProduct, setEditProduct] = useState<Product | null>(null)
   const [form, setForm] = useState({ name: '', sku: '', price: '', stock: '', category: '' })
   const [search, setSearch] = useState('')
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetchProducts()
@@ -35,10 +39,37 @@ export default function AdminProductsPage() {
     setLoading(false)
   }
 
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImageFile(file)
+    setImagePreview(URL.createObjectURL(file))
+  }
+
+  async function uploadImage(file: File): Promise<string | null> {
+    const ext = file.name.split('.').pop()
+    const fileName = `${Date.now()}.${ext}`
+    const { error } = await supabase.storage
+      .from('products')
+      .upload(fileName, file)
+    if (error) {
+      console.error(error)
+      return null
+    }
+    const { data } = supabase.storage.from('products').getPublicUrl(fileName)
+    return data.publicUrl
+  }
+
   async function handleSave() {
     if (!form.name || !form.sku || !form.price || !form.stock) {
       alert('Semua field harus diisi!')
       return
+    }
+    setUploading(true)
+
+    let imageUrl = editProduct?.image_url || null
+    if (imageFile) {
+      imageUrl = await uploadImage(imageFile)
     }
 
     if (editProduct) {
@@ -50,6 +81,7 @@ export default function AdminProductsPage() {
           price: parseFloat(form.price),
           stock: parseInt(form.stock),
           category: form.category,
+          image_url: imageUrl,
         })
         .eq('id', editProduct.id)
       if (error) alert('Error: ' + error.message)
@@ -67,6 +99,7 @@ export default function AdminProductsPage() {
           price: parseFloat(form.price),
           stock: parseInt(form.stock),
           category: form.category,
+          image_url: imageUrl,
         }])
       if (error) alert('Error: ' + error.message)
       else {
@@ -75,13 +108,13 @@ export default function AdminProductsPage() {
         fetchProducts()
       }
     }
+    setUploading(false)
   }
 
   async function handleDelete(id: string) {
     if (!confirm('Yakin hapus produk ini?')) return
-    const { error } = await supabase.from('products').delete().eq('id', id)
-    if (error) alert('Error: ' + error.message)
-    else fetchProducts()
+    await supabase.from('products').delete().eq('id', id)
+    fetchProducts()
   }
 
   function handleEdit(product: Product) {
@@ -93,6 +126,7 @@ export default function AdminProductsPage() {
       stock: product.stock.toString(),
       category: product.category || '',
     })
+    setImagePreview(product.image_url)
     setShowForm(true)
   }
 
@@ -100,6 +134,8 @@ export default function AdminProductsPage() {
     setForm({ name: '', sku: '', price: '', stock: '', category: '' })
     setEditProduct(null)
     setShowForm(false)
+    setImageFile(null)
+    setImagePreview(null)
   }
 
   const filtered = products.filter(p =>
@@ -109,20 +145,20 @@ export default function AdminProductsPage() {
   )
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-[#f7f9fb]">
       {/* Sidebar */}
-      <aside className="w-60 bg-gray-50 border-r border-gray-200 flex flex-col p-4 gap-2 fixed h-screen">
+      <aside className="w-60 bg-white border-r border-gray-200 flex flex-col p-4 gap-2 fixed h-screen z-40">
         <div className="mb-6">
-          <p className="font-bold text-lg">Alim Rugi Admin</p>
+          <p className="font-bold text-lg" style={{ fontFamily: 'Hanken Grotesk, sans-serif' }}>Alim Rugi Admin</p>
           <p className="text-xs text-gray-400">Product Management</p>
         </div>
-        <Link href="/admin" className="flex items-center gap-2 p-2 text-gray-500 hover:bg-gray-100 rounded-lg text-sm">
+        <Link href="/admin" className="flex items-center gap-2 p-2 text-gray-500 hover:bg-gray-100 rounded-xl text-sm transition-all">
           📊 Dashboard
         </Link>
-        <Link href="/admin/products" className="flex items-center gap-2 p-2 bg-blue-50 text-blue-600 rounded-lg text-sm font-bold">
+        <Link href="/admin/products" className="flex items-center gap-2 p-2 bg-blue-50 text-blue-600 rounded-xl text-sm font-bold">
           📦 Products
         </Link>
-        <Link href="/" className="flex items-center gap-2 p-2 text-gray-500 hover:bg-gray-100 rounded-lg text-sm">
+        <Link href="/" className="flex items-center gap-2 p-2 text-gray-500 hover:bg-gray-100 rounded-xl text-sm transition-all">
           🏠 Back to Store
         </Link>
         <button
@@ -137,7 +173,7 @@ export default function AdminProductsPage() {
       <main className="ml-60 flex-1 p-8">
         <div className="flex justify-between items-end mb-6">
           <div>
-            <h1 className="text-3xl font-bold">Kelola Produk</h1>
+            <h1 className="text-3xl font-bold" style={{ fontFamily: 'Hanken Grotesk, sans-serif' }}>Kelola Produk</h1>
             <p className="text-gray-400 text-sm mt-1">Total {products.length} produk terdaftar</p>
           </div>
           <div className="flex gap-3">
@@ -180,85 +216,133 @@ export default function AdminProductsPage() {
 
         {/* Form Tambah/Edit */}
         {showForm && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6">
             <h2 className="font-bold text-lg mb-4">
-              {editProduct ? 'Edit Produk' : 'Tambah Produk Baru'}
+              {editProduct ? '✏️ Edit Produk' : '➕ Tambah Produk Baru'}
             </h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 uppercase">Nama Produk</label>
-                <input
-                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="Nama Produk"
-                  value={form.name}
-                  onChange={e => setForm({ ...form, name: e.target.value })}
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 uppercase">SKU</label>
-                <input
-                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="AR-XXX-000"
-                  value={form.sku}
-                  onChange={e => setForm({ ...form, sku: e.target.value })}
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 uppercase">Harga ($)</label>
-                <input
-                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="0.00"
-                  type="number"
-                  value={form.price}
-                  onChange={e => setForm({ ...form, price: e.target.value })}
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-gray-500 uppercase">Stok</label>
-                <input
-                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="0"
-                  type="number"
-                  value={form.stock}
-                  onChange={e => setForm({ ...form, stock: e.target.value })}
-                />
-              </div>
-              <div className="flex flex-col gap-1 col-span-2">
-                <label className="text-xs text-gray-500 uppercase">Kategori</label>
-                <select
-                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  value={form.category}
-                  onChange={e => setForm({ ...form, category: e.target.value })}
+            <div className="grid grid-cols-3 gap-6">
+              {/* Upload Foto */}
+              <div className="col-span-1">
+                <label className="text-xs text-gray-500 uppercase block mb-2">Foto Produk</label>
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-blue-300 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all"
+                  style={{ minHeight: '160px' }}
                 >
-                  <option value="">Pilih Kategori</option>
-                  <option value="Hardware">Hardware</option>
-                  <option value="Software">Software</option>
-                  <option value="Aksesori">Aksesori</option>
-                  <option value="F&B">F&B</option>
-                  <option value="Home & Living">Home & Living</option>
-                  <option value="Apparel">Apparel</option>
-                </select>
+                  {imagePreview ? (
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="w-full h-36 object-cover rounded-lg"
+                    />
+                  ) : (
+                    <>
+                      <span className="text-4xl mb-2">📷</span>
+                      <p className="text-xs text-gray-400 text-center">Klik untuk upload foto</p>
+                      <p className="text-xs text-gray-300 text-center mt-1">JPG, PNG, WEBP</p>
+                    </>
+                  )}
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageChange}
+                />
+                {imagePreview && (
+                  <button
+                    onClick={() => { setImageFile(null); setImagePreview(null) }}
+                    className="mt-2 text-xs text-red-400 hover:text-red-600 w-full text-center"
+                  >
+                    Hapus foto
+                  </button>
+                )}
               </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <button
-                onClick={handleSave}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-blue-700"
-              >
-                {editProduct ? 'Update Produk' : 'Simpan Produk'}
-              </button>
-              <button
-                onClick={resetForm}
-                className="bg-gray-200 text-gray-600 px-6 py-2 rounded-lg text-sm hover:bg-gray-300"
-              >
-                Batal
-              </button>
+
+              {/* Form Fields */}
+              <div className="col-span-2 grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-gray-500 uppercase">Nama Produk</label>
+                  <input
+                    className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                    placeholder="Nama Produk"
+                    value={form.name}
+                    onChange={e => setForm({ ...form, name: e.target.value })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-gray-500 uppercase">SKU</label>
+                  <input
+                    className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                    placeholder="AR-XXX-000"
+                    value={form.sku}
+                    onChange={e => setForm({ ...form, sku: e.target.value })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-gray-500 uppercase">Harga ($)</label>
+                  <input
+                    className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                    placeholder="0.00"
+                    type="number"
+                    value={form.price}
+                    onChange={e => setForm({ ...form, price: e.target.value })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-gray-500 uppercase">Stok</label>
+                  <input
+                    className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                    placeholder="0"
+                    type="number"
+                    value={form.stock}
+                    onChange={e => setForm({ ...form, stock: e.target.value })}
+                  />
+                </div>
+                <div className="flex flex-col gap-1 col-span-2">
+                  <label className="text-xs text-gray-500 uppercase">Kategori</label>
+                  <select
+                    className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                    value={form.category}
+                    onChange={e => setForm({ ...form, category: e.target.value })}
+                  >
+                    <option value="">Pilih Kategori</option>
+                    <option value="Hardware">Hardware</option>
+                    <option value="Software">Software</option>
+                    <option value="Aksesori">Aksesori</option>
+                    <option value="F&B">F&B</option>
+                    <option value="Home & Living">Home & Living</option>
+                    <option value="Apparel">Apparel</option>
+                  </select>
+                </div>
+                <div className="col-span-2 flex gap-2 mt-2">
+                  <button
+                    onClick={handleSave}
+                    disabled={uploading}
+                    className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-70 flex items-center gap-2"
+                  >
+                    {uploading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Menyimpan...
+                      </>
+                    ) : editProduct ? 'Update Produk' : 'Simpan Produk'}
+                  </button>
+                  <button
+                    onClick={resetForm}
+                    className="bg-gray-200 text-gray-600 px-6 py-2 rounded-lg text-sm hover:bg-gray-300"
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
 
         {/* Tabel Produk */}
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <table className="w-full text-left">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
@@ -287,10 +371,20 @@ export default function AdminProductsPage() {
                   </td>
                 </tr>
               ) : filtered.map((product) => (
-                <tr key={product.id} className="border-b border-gray-100 hover:bg-gray-50">
+                <tr key={product.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-xl">📦</div>
+                      <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
+                        {product.image_url ? (
+                          <img
+                            src={product.image_url}
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-xl">📦</div>
+                        )}
+                      </div>
                       <p className="font-semibold text-sm">{product.name}</p>
                     </div>
                   </td>
@@ -316,13 +410,13 @@ export default function AdminProductsPage() {
                     <div className="flex items-center justify-center gap-2">
                       <button
                         onClick={() => handleEdit(product)}
-                        className="text-blue-400 hover:text-blue-600 text-sm px-3 py-1 border border-blue-200 rounded hover:bg-blue-50"
+                        className="text-blue-400 hover:text-blue-600 text-sm px-3 py-1 border border-blue-200 rounded-lg hover:bg-blue-50 transition-all"
                       >
                         ✏️ Edit
                       </button>
                       <button
                         onClick={() => handleDelete(product.id)}
-                        className="text-red-400 hover:text-red-600 text-sm px-3 py-1 border border-red-200 rounded hover:bg-red-50"
+                        className="text-red-400 hover:text-red-600 text-sm px-3 py-1 border border-red-200 rounded-lg hover:bg-red-50 transition-all"
                       >
                         🗑 Hapus
                       </button>
@@ -332,8 +426,6 @@ export default function AdminProductsPage() {
               ))}
             </tbody>
           </table>
-
-          {/* Pagination info */}
           <div className="px-6 py-3 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
             <p className="text-xs text-gray-400">
               Menampilkan {filtered.length} dari {products.length} produk
