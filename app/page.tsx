@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { ThemeToggle } from './components/ThemeToggle'
 
 type Product = {
   id: string
@@ -50,28 +51,14 @@ export default function Home() {
   }
 
   async function addToCart(productId: string) {
-    if (!user) {
-      router.push('/login')
-      return
-    }
+    if (!user) { router.push('/login'); return }
     const { data: existing } = await supabase
-      .from('carts')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('product_id', productId)
-      .single()
-
+      .from('carts').select('*')
+      .eq('user_id', user.id).eq('product_id', productId).single()
     if (existing) {
-      await supabase
-        .from('carts')
-        .update({ quantity: existing.quantity + 1 })
-        .eq('id', existing.id)
+      await supabase.from('carts').update({ quantity: existing.quantity + 1 }).eq('id', existing.id)
     } else {
-      await supabase.from('carts').insert([{
-        user_id: user.id,
-        product_id: productId,
-        quantity: 1,
-      }])
+      await supabase.from('carts').insert([{ user_id: user.id, product_id: productId, quantity: 1 }])
     }
     fetchCartCount(user.id)
     alert('Produk ditambahkan ke keranjang! 🛒')
@@ -99,7 +86,6 @@ export default function Home() {
       {/* Navbar */}
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 w-full shadow-sm">
         <div className="flex justify-between items-center px-4 md:px-8 py-3">
-          {/* Logo */}
           <Link className="text-xl md:text-2xl font-bold text-gray-900" href="/" style={{ fontFamily: 'Hanken Grotesk, sans-serif' }}>
             Alim Rugi
           </Link>
@@ -111,7 +97,6 @@ export default function Home() {
               <input
                 className="w-full bg-gray-100 border border-gray-200 rounded-full py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none focus:bg-white transition-all"
                 placeholder="Search products..."
-                type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
@@ -121,7 +106,8 @@ export default function Home() {
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-3">
             <Link href="/" className="text-blue-600 font-bold text-sm">Store</Link>
-            <Link href="/orders" className="text-gray-500 hover:text-gray-900 text-sm transition-colors">Pesanan</Link>
+            <Link href="/orders" className="text-gray-500 hover:text-gray-900 text-sm">Pesanan</Link>
+            <ThemeToggle />
             <Link href="/cart" className="relative p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-all">
               🛒
               {cartCount > 0 && (
@@ -136,15 +122,13 @@ export default function Home() {
                   <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
                     {(user.user_metadata?.name || user.email || 'U').charAt(0).toUpperCase()}
                   </div>
-                  <span className="text-sm font-bold text-gray-700">
-                    {user.user_metadata?.name || 'Profil'}
-                  </span>
+                  <span className="text-sm font-bold text-gray-700">{user.user_metadata?.name || 'Profil'}</span>
                 </Link>
                 <Link href="/admin" className="text-sm text-blue-600 font-bold hover:underline">Admin</Link>
-                <button onClick={handleLogout} className="text-sm text-gray-400 hover:text-red-500 transition-colors">Logout</button>
+                <button onClick={handleLogout} className="text-sm text-gray-400 hover:text-red-500">Logout</button>
               </div>
             ) : (
-              <Link href="/login" className="bg-blue-600 text-white px-4 py-2 rounded-full text-sm font-bold hover:bg-blue-700 transition-all">
+              <Link href="/login" className="bg-blue-600 text-white px-4 py-2 rounded-full text-sm font-bold hover:bg-blue-700">
                 Login
               </Link>
             )}
@@ -152,6 +136,7 @@ export default function Home() {
 
           {/* Mobile Right */}
           <div className="flex md:hidden items-center gap-2">
+            <ThemeToggle />
             <Link href="/cart" className="relative p-2 text-gray-500">
               🛒
               {cartCount > 0 && (
@@ -160,10 +145,7 @@ export default function Home() {
                 </span>
               )}
             </Link>
-            <button
-              onClick={() => setMenuOpen(!menuOpen)}
-              className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-all"
-            >
+            <button onClick={() => setMenuOpen(!menuOpen)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
               {menuOpen ? '✕' : '☰'}
             </button>
           </div>
@@ -176,7 +158,6 @@ export default function Home() {
             <input
               className="w-full bg-gray-100 border border-gray-200 rounded-full py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
               placeholder="Search products..."
-              type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -185,7 +166,7 @@ export default function Home() {
 
         {/* Mobile Menu */}
         {menuOpen && (
-          <div className="md:hidden bg-white border-t border-gray-100 px-4 py-4 flex flex-col gap-3">
+          <div className="md:hidden bg-white border-t border-gray-100 px-4 py-4 flex flex-col gap-2">
             <Link href="/" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 font-bold text-blue-600">
               🏠 Store
             </Link>
@@ -237,7 +218,7 @@ export default function Home() {
                 Elevate Your SME Efficiency.
               </h1>
               <p className="text-blue-100 text-sm md:text-base mb-5 max-w-lg hidden md:block">
-                Experience the next generation of inventory management tools designed for high-growth businesses.
+                Experience the next generation of inventory management tools.
               </p>
               <Link className="bg-white text-blue-700 px-5 py-2.5 md:px-6 md:py-3 rounded-full font-bold hover:bg-blue-50 transition-all inline-flex items-center gap-2 shadow-lg text-sm md:text-base" href="/cart">
                 Shop Now →
@@ -250,14 +231,14 @@ export default function Home() {
               <h2 className="text-base md:text-xl font-bold text-gray-900" style={{ fontFamily: 'Hanken Grotesk, sans-serif' }}>
                 Premium Stock Trackers
               </h2>
-              <p className="text-xs md:text-sm text-gray-500 mt-1">Reliable tools for your inventory</p>
+              <p className="text-xs md:text-sm text-gray-500 mt-1 hidden md:block">Reliable tools for your inventory</p>
             </div>
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-4 md:p-6 border border-blue-100 shadow-sm">
               <span className="text-xs uppercase text-blue-400 tracking-wider mb-1 block font-bold">🏷️ Special Offer</span>
               <h2 className="text-base md:text-xl font-bold text-blue-800" style={{ fontFamily: 'Hanken Grotesk, sans-serif' }}>
                 20% Off Essentials
               </h2>
-              <p className="text-xs md:text-sm text-blue-600 font-mono bg-blue-200/50 inline-block px-2 py-0.5 rounded mt-1">
+              <p className="text-xs md:text-sm font-mono bg-blue-200/50 inline-block px-2 py-0.5 rounded mt-1 text-blue-600">
                 ALIMRUGI20
               </p>
             </div>
@@ -287,7 +268,7 @@ export default function Home() {
       {/* Products */}
       <section className="px-4 md:px-8 py-6 md:py-8">
         <div className="flex justify-between items-center mb-4 md:mb-6">
-          <h2 className="text-xl md:text-2xl font-bold" style={{ fontFamily: 'Hanken Grotesk, sans-serif' }}>
+          <h2 className="text-xl md:text-2xl font-bold text-gray-900" style={{ fontFamily: 'Hanken Grotesk, sans-serif' }}>
             {search ? `Hasil: "${search}"` : activeCategory === 'All' ? 'Semua Produk' : activeCategory}
           </h2>
           <p className="text-sm text-gray-400">{filtered.length} produk</p>
@@ -329,14 +310,10 @@ export default function Home() {
                     <span className="text-4xl md:text-6xl group-hover:scale-110 transition-transform duration-300">📦</span>
                   )}
                   {product.stock > 0 && product.stock < 10 && (
-                    <span className="absolute top-2 right-2 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full font-bold">
-                      LOW
-                    </span>
+                    <span className="absolute top-2 right-2 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full font-bold">LOW</span>
                   )}
                   {product.stock === 0 && (
-                    <span className="absolute top-2 right-2 bg-gray-500 text-white text-xs px-1.5 py-0.5 rounded-full font-bold">
-                      HABIS
-                    </span>
+                    <span className="absolute top-2 right-2 bg-gray-500 text-white text-xs px-1.5 py-0.5 rounded-full font-bold">HABIS</span>
                   )}
                 </div>
                 <div className="p-3 md:p-4 flex flex-col gap-1 flex-1">
@@ -365,9 +342,7 @@ export default function Home() {
       {/* Newsletter */}
       <section className="px-4 md:px-8 py-6 md:py-8">
         <div className="relative overflow-hidden bg-gray-900 text-white rounded-2xl p-6 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
-          <div className="absolute inset-0 opacity-10" style={{
-            backgroundImage: 'radial-gradient(circle at 10% 50%, #3b82f6 0%, transparent 50%)'
-          }} />
+          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 10% 50%, #3b82f6 0%, transparent 50%)' }} />
           <div className="relative">
             <h2 className="text-xl md:text-2xl font-bold mb-1" style={{ fontFamily: 'Hanken Grotesk, sans-serif' }}>
               Join the Alim Rugi Network
@@ -425,7 +400,6 @@ export default function Home() {
         </Link>
       </div>
 
-      {/* Mobile bottom padding */}
       <div className="md:hidden h-16" />
     </main>
   )
