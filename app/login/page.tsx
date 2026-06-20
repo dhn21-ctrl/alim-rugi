@@ -1,72 +1,82 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
+function Toast({ message, type, onClose }: { message: string, type: 'success' | 'error', onClose: () => void }) {
+  return (
+    <div className={`fixed top-6 right-4 md:right-6 z-[100] flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-white text-sm font-bold ${
+      type === 'success' ? 'bg-green-500' : 'bg-red-500'
+    }`}>
+      <span>{type === 'success' ? '✅' : '❌'}</span>
+      <span>{message}</span>
+      <button onClick={onClose} className="ml-2 opacity-70 hover:opacity-100">✕</button>
+    </div>
+  )
+}
+
 export default function LoginPage() {
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null)
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) window.location.href = '/'
-    })
-  }, [])
+  function showToast(message: string, type: 'success' | 'error') {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 3000)
+  }
 
   async function handleLogin() {
-    setLoading(true)
-    setError('')
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    })
-
-    if (error) {
-      setError('Email atau password salah!')
-      setLoading(false)
+    if (!email || !password) {
+      showToast('Email dan password harus diisi!', 'error')
       return
     }
-
-    if (data.session) {
-      window.location.href = '/'
+    setLoading(true)
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) {
+      showToast(error.message, 'error')
+      setLoading(false)
+    } else {
+      showToast('Login berhasil! Mengalihkan...', 'success')
+      setTimeout(() => router.push('/'), 1000)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-[#f7f9fb] flex items-center justify-center px-4">
+      {toast && <Toast {...toast} onClose={() => setToast(null)} />}
+
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <Link href="/" className="text-3xl font-bold text-blue-600">Alim Rugi</Link>
-          <p className="text-gray-400 mt-2">Masuk ke akun Anda</p>
+          <Link href="/" className="text-3xl font-bold text-blue-600" style={{ fontFamily: 'Hanken Grotesk, sans-serif' }}>
+            Alim Rugi
+          </Link>
+          <p className="text-gray-400 mt-2 text-sm">Masuk ke akun Anda</p>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-lg p-8">
-          <h1 className="text-2xl font-bold mb-6">Login</h1>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 rounded-lg px-4 py-3 text-sm mb-4">
-              {error}
-            </div>
-          )}
+        <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
+          <h1 className="text-2xl font-bold mb-6 text-gray-900" style={{ fontFamily: 'Hanken Grotesk, sans-serif' }}>
+            Login
+          </h1>
 
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-400 uppercase">Email</label>
+              <label className="text-xs text-gray-400 uppercase font-bold">Email</label>
               <input
-                className="border border-gray-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50"
                 type="email"
                 placeholder="email@example.com"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleLogin()}
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-400 uppercase">Password</label>
+              <label className="text-xs text-gray-400 uppercase font-bold">Password</label>
               <input
-                className="border border-gray-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-gray-50"
                 type="password"
                 placeholder="••••••••"
                 value={password}
@@ -78,9 +88,14 @@ export default function LoginPage() {
             <button
               onClick={handleLogin}
               disabled={loading}
-              className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-70 mt-2"
+              className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-70 flex items-center justify-center gap-2 mt-2 transition-all"
             >
-              {loading ? 'Memproses...' : 'Masuk'}
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Memproses...
+                </>
+              ) : '🔐 Masuk'}
             </button>
           </div>
 
