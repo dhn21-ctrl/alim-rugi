@@ -15,6 +15,24 @@ type Product = {
   image_url: string | null
 }
 
+// Toast notification component
+function Toast({ message, type, onClose }: { message: string, type: 'success' | 'error', onClose: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 3000)
+    return () => clearTimeout(timer)
+  }, [onClose])
+
+  return (
+    <div className={`fixed bottom-20 md:bottom-6 right-4 md:right-6 z-[100] flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-white text-sm font-bold transition-all animate-bounce-in ${
+      type === 'success' ? 'bg-green-500' : 'bg-red-500'
+    }`}>
+      <span>{type === 'success' ? '✅' : '❌'}</span>
+      <span>{message}</span>
+      <button onClick={onClose} className="ml-2 opacity-70 hover:opacity-100">✕</button>
+    </div>
+  )
+}
+
 export default function Home() {
   const router = useRouter()
   const [products, setProducts] = useState<Product[]>([])
@@ -24,6 +42,8 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState('All')
   const [cartCount, setCartCount] = useState(0)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null)
+  const [addingToCart, setAddingToCart] = useState<string | null>(null)
 
   useEffect(() => {
     fetchProducts()
@@ -50,18 +70,31 @@ export default function Home() {
     setLoading(false)
   }
 
-  async function addToCart(productId: string) {
-    if (!user) { router.push('/login'); return }
-    const { data: existing } = await supabase
-      .from('carts').select('*')
-      .eq('user_id', user.id).eq('product_id', productId).single()
-    if (existing) {
-      await supabase.from('carts').update({ quantity: existing.quantity + 1 }).eq('id', existing.id)
-    } else {
-      await supabase.from('carts').insert([{ user_id: user.id, product_id: productId, quantity: 1 }])
+  function showToast(message: string, type: 'success' | 'error') {
+    setToast({ message, type })
+  }
+
+  async function addToCart(productId: string, productName: string) {
+    if (!user) {
+      router.push('/login')
+      return
     }
-    fetchCartCount(user.id)
-    alert('Produk ditambahkan ke keranjang! 🛒')
+    setAddingToCart(productId)
+    try {
+      const { data: existing } = await supabase
+        .from('carts').select('*')
+        .eq('user_id', user.id).eq('product_id', productId).single()
+      if (existing) {
+        await supabase.from('carts').update({ quantity: existing.quantity + 1 }).eq('id', existing.id)
+      } else {
+        await supabase.from('carts').insert([{ user_id: user.id, product_id: productId, quantity: 1 }])
+      }
+      fetchCartCount(user.id)
+      showToast(`${productName} ditambahkan ke keranjang!`, 'success')
+    } catch {
+      showToast('Gagal menambahkan ke keranjang', 'error')
+    }
+    setAddingToCart(null)
   }
 
   async function handleLogout() {
@@ -69,6 +102,7 @@ export default function Home() {
     setUser(null)
     setCartCount(0)
     setMenuOpen(false)
+    showToast('Berhasil logout!', 'success')
     router.refresh()
   }
 
@@ -83,6 +117,15 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#f7f9fb]">
+      {/* Toast */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
       {/* Navbar */}
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 w-full shadow-sm">
         <div className="flex justify-between items-center px-4 md:px-8 py-3">
@@ -90,7 +133,6 @@ export default function Home() {
             Alim Rugi
           </Link>
 
-          {/* Search Desktop */}
           <div className="flex-1 max-w-md mx-8 hidden md:block">
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
@@ -103,7 +145,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-3">
             <Link href="/" className="text-blue-600 font-bold text-sm">Store</Link>
             <Link href="/orders" className="text-gray-500 hover:text-gray-900 text-sm">Pesanan</Link>
@@ -134,7 +175,6 @@ export default function Home() {
             )}
           </div>
 
-          {/* Mobile Right */}
           <div className="flex md:hidden items-center gap-2">
             <ThemeToggle />
             <Link href="/cart" className="relative p-2 text-gray-500">
@@ -151,12 +191,11 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Mobile Search */}
         <div className="md:hidden px-4 pb-3">
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
             <input
-              className="w-full bg-gray-100 border border-gray-200 rounded-full py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full bg-gray-100 border border-gray-200 rounded-full py-2 pl-9 pr-4 text-sm"
               placeholder="Search products..."
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -164,7 +203,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Mobile Menu */}
         {menuOpen && (
           <div className="md:hidden bg-white border-t border-gray-100 px-4 py-4 flex flex-col gap-2">
             <Link href="/" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 font-bold text-blue-600">
@@ -291,7 +329,10 @@ export default function Home() {
           <div className="text-center py-16">
             <p className="text-4xl mb-3">🔍</p>
             <p className="text-gray-400 mb-3">Produk tidak ditemukan</p>
-            <button onClick={() => { setSearch(''); setActiveCategory('All') }} className="text-blue-600 text-sm hover:underline">
+            <button
+              onClick={() => { setSearch(''); setActiveCategory('All') }}
+              className="text-blue-600 text-sm hover:underline"
+            >
               Reset filter
             </button>
           </div>
@@ -299,12 +340,12 @@ export default function Home() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-5">
             {filtered.map((product) => (
               <div key={product.id} className="bg-white border border-gray-200 rounded-2xl flex flex-col overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-200 group">
-                <div className="relative aspect-square bg-gray-50 p-3 md:p-4 flex items-center justify-center overflow-hidden">
+                <div className="relative aspect-square bg-white p-3 md:p-4 flex items-center justify-center overflow-hidden">
                   {product.image_url ? (
                     <img
                       src={product.image_url}
                       alt={product.name}
-                      className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-300"
+                      className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                     />
                   ) : (
                     <span className="text-4xl md:text-6xl group-hover:scale-110 transition-transform duration-300">📦</span>
@@ -326,11 +367,17 @@ export default function Home() {
                     <span className="text-xs text-gray-400 hidden md:block">{product.stock} stok</span>
                   </div>
                   <button
-                    onClick={() => addToCart(product.id)}
-                    disabled={product.stock === 0}
-                    className="mt-2 w-full py-2 bg-gray-100 hover:bg-blue-600 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all rounded-xl text-xs font-bold flex justify-center items-center gap-1"
+                    onClick={() => addToCart(product.id, product.name)}
+                    disabled={product.stock === 0 || addingToCart === product.id}
+                    className={`mt-2 w-full py-2 transition-all rounded-xl text-xs font-bold flex justify-center items-center gap-1 ${
+                      addingToCart === product.id
+                        ? 'bg-green-500 text-white'
+                        : product.stock === 0
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-gray-100 hover:bg-blue-600 hover:text-white'
+                    }`}
                   >
-                    {product.stock === 0 ? 'Habis' : '🛒 Add to Cart'}
+                    {addingToCart === product.id ? '✓ Ditambahkan!' : product.stock === 0 ? 'Habis' : '🛒 Add to Cart'}
                   </button>
                 </div>
               </div>
